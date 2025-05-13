@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مساعد المعلم الذكي</title>
+    <style>
+        body { font-family: 'Tahoma', 'Arial', sans-serif; margin: 20px; background-color: #f0f2f5; direction: rtl; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 900px; margin: auto; }
+        h1, h2, h3 { text-align: center; color: #1c2b33; }
+        h1 { margin-bottom: 30px; font-size: 2em; }
+        h2 { margin-top: 40px; margin-bottom: 20px; font-size: 1.5em; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }
+        textarea { width: 98%; min-height: 120px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; margin-bottom: 15px; direction: rtl; }
+        input[type="text"] {width: 98%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; margin-bottom: 15px; direction: rtl;}
+        button { background-color: #007bff; color: white; padding: 10px 18px; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; display: inline-block; margin-top: 10px; transition: background-color 0.3s ease; }
+        button:hover { background-color: #0056b3; }
+        .results, .evaluation-form { margin-top: 20px; padding: 15px; background-color: #e9ecef; border: 1px solid #ced4da; border-radius: 5px; }
+        .error { color: #D8000C; background-color: #FFD2D2; border: 1px solid #D8000C; padding: 10px; border-radius: 4px; margin-bottom: 15px; text-align: center; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #f8f9fa; padding: 15px; border-radius: 4px; border: 1px solid #dee2e6; direction: rtl; text-align: right; font-size: 1.1em; line-height: 1.6; }
+        .form-section { margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .form-section:last-child { border-bottom: none; }
+        .generated-questions-list { list-style-type: none; padding-right: 0; }
+        .generated-questions-list li { background-color: #f8f9fa; margin-bottom: 8px; padding: 10px; border-radius: 4px; border-right: 3px solid #007bff;}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>مساعد المعلم الذكي: إنشاء الأسئلة وتقييم الإجابات</h1>
+
+        <!-- SECTION 1: Génération de Questions -->
+        <div class="form-section">
+            <h2>الخطوة 1: إنشاء الأسئلة</h2>
+            {% if erreur_generation %}
+                <div class="error">{{ erreur_generation }}</div>
+            {% endif %}
+            <form method="post">
+                <input type="hidden" name="action" value="generer_questions">
+                <label for="texte_enseignant_generation">النص المصدر (لإنشاء الأسئلة):</label>
+                <textarea id="texte_enseignant_generation" name="texte_enseignant_generation" required placeholder="ألصق النص الأصلي هنا...">{{ texte_original_generation | default('') }}</textarea>
+                <button type="submit">إنشاء 5 أسئلة مفتوحة</button>
+            </form>
+
+            {% if questions_generees_str %}
+            <div class="results">
+                <h3>الأسئلة المُنشأة:</h3>
+                <pre id="generated_questions_text">{{ questions_generees_str }}</pre>
+                <p><small>(يمكنك نسخ سؤال من هذه القائمة ولصقه في نموذج التقييم أدناه)</small></p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- SECTION 2: Évaluation de Réponse -->
+        <div class="form-section">
+            <h2>الخطوة 2: تقييم إجابة الطالب</h2>
+            <p>يرجى التأكد من نسخ النص المصدر الأصلي والسؤال المُراد تقييم إجابته في الحقول أدناه.</p>
+            {% if erreur_evaluation %}
+                <div class="error">{{ erreur_evaluation }}</div>
+            {% endif %}
+            <form method="post">
+                <input type="hidden" name="action" value="evaluer_reponse">
+                <!-- Champs cachés pour conserver l'état de la génération si l'évaluation est soumise -->
+                <input type="hidden" name="texte_enseignant_generation_hidden" value="{{ texte_original_generation | default('') }}">
+                <input type="hidden" name="questions_generees_hidden" value="{{ questions_generees_str | default('') }}">
+
+                <label for="texte_source_evaluation">النص المصدر (المستخدم لإنشاء السؤال):</label>
+                <textarea id="texte_source_evaluation" name="texte_source_evaluation" required placeholder="ألصق النص المصدر الأصلي هنا...">{{ texte_source_eval_input | default(texte_original_generation | default('')) }}</textarea>
+
+                <label for="question_evaluation">السؤال المُراد تقييم إجابته:</label>
+                <input type="text" id="question_evaluation" name="question_evaluation" required placeholder="ألصق السؤال الذي تم إنشاؤه هنا..." value="{{ question_eval_input | default('') }}">
+
+                <label for="reponse_etudiant_evaluation">إجابة الطالب:</label>
+                <textarea id="reponse_etudiant_evaluation" name="reponse_etudiant_evaluation" required placeholder="ألصق إجابة الطالب هنا...">{{ reponse_etudiant_eval_input | default('') }}</textarea>
+                <button type="submit">تقييم الإجابة</button>
+            </form>
+
+            {% if evaluation_resultat %}
+            <div class="results">
+                <h3>نتيجة التقييم:</h3>
+                <pre>{{ evaluation_resultat }}</pre>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
