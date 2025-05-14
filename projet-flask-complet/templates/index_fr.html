@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistant Pédagogique (Feedback Structuré)</title>
+    <style>
+        /* ... (Vos styles CSS - peuvent rester les mêmes que v2) ... */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .container { background-color: #fff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 900px; margin: 30px auto; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; font-size: 2.2em; }
+        h2 { margin-top: 35px; margin-bottom: 20px; font-size: 1.6em; color: #3498db; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h3 { font-size: 1.3em; color: #2980b9; margin-top: 15px; margin-bottom: 10px;}
+        label { display: block; margin-bottom: 10px; font-weight: 600; color: #555; }
+        select, textarea, input[type="text"], input[type="number"] {
+            width: calc(100% - 22px); padding: 12px; border: 1px solid #ddd;
+            border-radius: 5px; font-size: 1rem; margin-bottom: 18px; box-sizing: border-box;
+        }
+        textarea { min-height: 100px; } /* Réduit un peu la hauteur par défaut */
+        button { background-color: #3498db; color: white; padding: 12px 22px; border: none;
+            border-radius: 5px; cursor: pointer; font-size: 1.05rem; font-weight: 500;
+            display: inline-block; margin-top: 10px; transition: background-color 0.2s ease-in-out;
+        }
+        button:hover { background-color: #2980b9; }
+        .results { margin-top: 25px; padding: 20px; background-color: #ecf0f1; border: 1px solid #bdc3c7; border-radius: 6px; }
+        .error, .flash-message.danger { color: #c0392b; background-color: #fdecea; border: 1px solid #e74c3c; padding: 12px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+        .flash-message.success { color: #27ae60; background-color: #eafaf1; border: 1px solid #2ecc71; padding: 12px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+        .flash-message.info { color: #2980b9; background-color: #eaf2f8; border: 1px solid #3498db; padding: 12px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #fdfdfe; padding: 18px;
+            border-radius: 5px; border: 1px solid #e0e0e0; text-align: left; font-size: 1.0em; /* Un peu plus petit pour feedback */
+            line-height: 1.6; color: #333; margin-bottom: 10px;
+        }
+        .form-section { margin-bottom: 45px; padding-bottom: 25px; border-bottom: 1px dashed #ccc; }
+        .form-section:last-child { border-bottom: none; }
+        .info-text { font-size: 0.9em; color: #7f8c8d; margin-bottom: 15px; }
+        .question-item, .question-selection-item { background-color: #f9f9f9; padding: 10px; margin-bottom:8px; border-radius:4px; border-left: 3px solid #3498db;}
+        .question-item button, .question-selection-item button {font-size: 0.8em; padding: 5px 10px; margin-left:10px;}
+        .checkbox-label { display: inline-block; margin-left: 5px; font-weight: normal;}
+        .feedback-section { border: 1px solid #dde; padding:10px; margin-bottom:10px; border-radius:4px; }
+        .feedback-section h4 {margin-top:0; color:#555;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Assistant Pédagogique (Feedback Structuré)</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% if erreur_critique %} <div class="error">{{ erreur_critique }}</div> {% endif %}
+
+        <!-- SECTION 1: Génération et Sélection de Questions (inchangée par rapport à v2) -->
+        <div class="form-section">
+            <h2>Étape 1 : Choisir Texte & Générer Questions</h2>
+            {% if erreur_generation %} <div class="error">{{ erreur_generation }}</div> {% endif %}
+            <form method="post" id="formGeneration">
+                <input type="hidden" name="action" value="generer_questions_pour_selection">
+                <label for="texte_selectionne">Choisir un texte existant :</label>
+                <select name="texte_selectionne" id="texte_selectionne">
+                    <option value="">-- Sélectionner un texte --</option>
+                    <option value="manuel" {% if texte_original_generation and not id_texte_pour_generation %}selected{% endif %}>-- Saisir un nouveau texte --</option>
+                    {% for texte_db in textes_db %}
+                        <option value="{{ texte_db.idTexte }}" {% if id_texte_pour_generation == texte_db.idTexte %}selected{% endif %}>
+                            ID: {{ texte_db.idTexte }} - {{ texte_db.texteContent[:70] | e }}... (L:{{ texte_db.niveauL }}, C:{{ texte_db.niveauC }})
+                        </option>
+                    {% endfor %}
+                </select>
+                <div id="manuel_input_section" style="display: {% if (texte_original_generation and not id_texte_pour_generation) or not id_texte_pour_generation %}block{% else %}none{% endif %}; margin-top:15px;">
+                    <label for="texte_manuel_generation">Ou saisir un nouveau texte (français) :</label>
+                    <textarea id="texte_manuel_generation" name="texte_manuel_generation" placeholder="Nouveau texte ici...">{{ texte_original_generation if not id_texte_pour_generation else '' }}</textarea>
+                    <label for="niveau_l_manuel">Niveau Lecture (A, B, C) :</label> <input type="text" id="niveau_l_manuel" name="niveau_l_manuel" value="A" maxlength="1">
+                    <label for="niveau_c_manuel">Niveau Compréhension (ex: 1) :</label> <input type="number" id="niveau_c_manuel" name="niveau_c_manuel" value="1" min="1">
+                </div>
+                <button type="submit">Générer les Questions (pour sélection)</button>
+            </form>
+
+            {% if show_question_selection and questions_proposees_ia %}
+            <div class="results" style="margin-top: 20px;">
+                <h3>Sélectionnez les questions à sauvegarder (pour Texte ID: {{ id_texte_pour_generation }})</h3>
+                <form method="post" id="formSauvegardeQuestions">
+                    <input type="hidden" name="action" value="sauvegarder_questions_selectionnees">
+                    {% for question_texte in questions_proposees_ia %}
+                    <div class="question-selection-item">
+                        <input type="checkbox" name="questions_choisies" value="{{ question_texte | e }}" id="q_choix_{{ loop.index }}">
+                        <label class="checkbox-label" for="q_choix_{{ loop.index }}">{{ question_texte | e }}</label>
+                    </div>
+                    {% endfor %}
+                    <button type="submit" style="background-color: #28a745;">Sauvegarder les Questions Sélectionnées</button>
+                </form>
+            </div>
+            {% endif %}
+
+            {% if questions_sauvegardees_avec_ids %}
+            <div class="results" style="margin-top: 20px;">
+                <h3>Questions Ouvertes Sauvegardées (pour Texte ID: {{ id_texte_pour_generation }})</h3>
+                {% for q_data in questions_sauvegardees_avec_ids %}
+                    <div class="question-item">
+                        <strong>Q{{ loop.index }} (ID: {{ q_data.idQO }}):</strong> {{ q_data.question | e }}
+                        <button type="button" onclick="preparerEvaluation('{{ id_texte_pour_generation }}', '{{ q_data.idQO }}', `{{ q_data.question | e | replace('\r\n', '\\n') | replace('\n', '\\n') }}`)">Évaluer réponse</button>
+                    </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- SECTION 2: Évaluation de Réponse -->
+        <div class="form-section">
+            <h2>Étape 2 : Évaluer une Réponse (en Français)</h2>
+            {% if erreur_evaluation %} <div class="error">{{ erreur_evaluation }}</div> {% endif %}
+            <form method="post" id="formEvaluation">
+                <input type="hidden" name="action" value="evaluer_reponse">
+                <input type="hidden" name="id_qo_pour_evaluation" id="id_qo_pour_evaluation" value="{{ id_qo_evalue | default('') }}">
+                <label for="texte_source_evaluation">Texte source (pour référence) :</label>
+                <textarea id="texte_source_evaluation" name="texte_source_evaluation" readonly placeholder="Sera rempli auto...">{{ texte_source_eval_input | default(texte_original_generation | default('')) }}</textarea>
+                <label for="question_evaluation_text">Question évaluée :</label>
+                <input type="text" id="question_evaluation_text" name="question_evaluation_text" readonly placeholder="Sera remplie auto..." value="{{ question_eval_input | default('') }}">
+                <label for="reponse_etudiant_evaluation">Réponse de l'étudiant :</label>
+                <textarea id="reponse_etudiant_evaluation" name="reponse_etudiant_evaluation" required placeholder="Saisir la réponse ici...">{{ reponse_etudiant_eval_input | default('') }}</textarea>
+                <button type="submit">Évaluer la Réponse</button>
+            </form>
+
+            {% if evaluation_resultat_structuré %}
+            <div class="results">
+                <h3>Résultat de l'Évaluation (pour Question ID: {{ id_qo_evalue }}) :</h3>
+                <div class="feedback-section">
+                    <h4>Réponse corrigée par l'IA :</h4>
+                    <pre>{{ evaluation_resultat_structuré.reponse_corrigee | default('Non fournie.') }}</pre>
+                </div>
+                <div class="feedback-section">
+                    <h4>Erreurs détectées par l'IA :</h4>
+                    <pre>{{ evaluation_resultat_structuré.erreurs_detectees | default('Non fournies.') }}</pre>
+                </div>
+                <div class="feedback-section">
+                    <h4>Note donnée par l'IA :</h4>
+                    <p><strong>{{ evaluation_resultat_structuré.evaluation_note | default('Non fournie.') }}</strong></p>
+                </div>
+                <div class="feedback-section">
+                    <h4>Justification de l'évaluation par l'IA :</h4>
+                    <pre>{{ evaluation_resultat_structuré.justification_evaluation | default('Non fournie.') }}</pre>
+                </div>
+                
+                {% if feedback_complet_ia_pour_affichage %}
+                <details style="margin-top:15px;">
+                    <summary style="cursor:pointer; color:#3498db;">Afficher/Masquer le feedback brut complet de l'IA</summary>
+                    <pre style="background-color:#eee; font-size:0.9em;">{{ feedback_complet_ia_pour_affichage }}</pre>
+                </details>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+<script>
+    // ... (JavaScript inchangé par rapport à v2) ...
+    document.getElementById('texte_selectionne').addEventListener('change', function() {
+        var manuelInputSection = document.getElementById('manuel_input_section');
+        if (this.value === 'manuel' || this.value === '') { manuelInputSection.style.display = 'block'; } 
+        else { manuelInputSection.style.display = 'none'; }
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+        var select = document.getElementById('texte_selectionne');
+        var manuelInputSection = document.getElementById('manuel_input_section');
+        if (select.value === 'manuel' || select.value === '') { manuelInputSection.style.display = 'block'; }
+        else { manuelInputSection.style.display = 'none'; }
+    });
+
+    function preparerEvaluation(idTexteSourceOriginal, idQO, questionTexte) {
+        let texteSourcePourFormEval = "";
+        let texteOriginalDeGenerationActuel = {{ texte_original_generation | tojson | safe }};
+        if ("{{ id_texte_pour_generation | default('') }}" == idTexteSourceOriginal && texteOriginalDeGenerationActuel) {
+            texteSourcePourFormEval = texteOriginalDeGenerationActuel;
+        } else {
+            console.warn("Tentative de fallback pour le texte source.");
+            const selectedOption = document.querySelector(`#texte_selectionne option[value="${idTexteSourceOriginal}"]`);
+            if (selectedOption) {
+                let extraitTexteOption = selectedOption.textContent.split(' - ')[1].split('... (L:')[0];
+                texteSourcePourFormEval = extraitTexteOption + "... (Extrait)";
+            }
+        }
+        if (!texteSourcePourFormEval) {
+             texteSourcePourFormEval = "Le texte source n'a pas pu être chargé. Veuillez le copier.";
+        }
+        document.getElementById('texte_source_evaluation').value = texteSourcePourFormEval;
+        document.getElementById('question_evaluation_text').value = questionTexte;
+        document.getElementById('id_qo_pour_evaluation').value = idQO;
+        document.getElementById('reponse_etudiant_evaluation').value = '';
+        document.getElementById('reponse_etudiant_evaluation').focus();
+        document.getElementById('formEvaluation').scrollIntoView({ behavior: 'smooth' });
+    }
+</script>
+</body>
+</html>
